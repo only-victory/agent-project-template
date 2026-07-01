@@ -1,0 +1,23 @@
+# 참조 어댑터(GitHub Actions). 다른 CI면 같은 스텝만 옮기면 된다: 플랫폼·스택 무관:
+#   (1) spec-gate  (2) golden-gate  (3) 에스컬레이션 경로  (4) 미완성 바인딩 차단  (5) verify
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: spec-gate
+        run: sh docs/ops/kit/spec-gate.sh
+      - name: golden-gate
+        run: sh docs/ops/kit/golden-gate.sh
+      - name: escalation-gate   # 에스컬레이션 경로 미설정 차단(단일 에이전트는 [SINGLE-AGENT] 마커로 면제)
+        run: sh docs/ops/kit/escalation-gate.sh
+      - name: block-unfilled-bindings
+        run: |
+          if grep -RnoE '<채우기|<\.\.\.>|<예:|verify\.sh 미구현|<PROJECT_NAME>' \
+               CLAUDE.md verify.sh 2>/dev/null; then
+            echo ": error: 미완성 슬롯/스텁이 남아 있습니다: 채운 뒤 머지하세요"; exit 1
+          fi
+      - name: verify
+        run: sh ./verify.sh
