@@ -1,0 +1,87 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls*)",
+      "Bash(pwd)",
+      "Bash(cat*)",
+      "Bash(head*)",
+      "Bash(tail*)",
+      "Bash(grep*)",
+      "Bash(rg*)",
+      "Bash(find*)",
+      "Bash(which*)",
+      "Bash(echo*)",
+      "Bash(wc*)",
+      "Bash(diff*)",
+      "Bash(tree*)",
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch)",
+      "Bash(./verify.sh)",
+      "Bash(sh*gate.sh)",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "ask": [
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push)",
+      "Bash(git checkout*)",
+      "Bash(git merge*)",
+      "Bash(mv*)",
+      "Bash(cp*)",
+      "Bash(mkdir*)",
+      "Bash(rm*)"
+    ],
+    "deny": [
+      "Bash(sudo*)",
+      "Bash(git push*--force*)",
+      "Bash(git push*-f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean*)",
+      "Bash(mkfs*)",
+      "Bash(dd*)",
+      "Bash(:(){:|:&};:)",
+      "Bash(rm -rf*)",
+      "Bash(rm -fr*)",
+      "Bash(rm -r -f*)",
+      "Bash(sudo rm*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/plan-date-check.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

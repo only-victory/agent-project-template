@@ -1,0 +1,39 @@
+# === 민감 정보 (절대 커밋 금지) ===
+.env
+.env.*
+*.key
+*.pem
+secrets/
+credentials*.json
+.clasp.json          # GAS 배포 정보 (스크립트 ID 노출 방지)
+service-account*.json
+
+# === 의존성 ===
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pnpm-store/
+
+# === 빌드 산출물 ===
+dist/
+build/
+.next/
+out/
+*.log
+
+# === OS / 에디터 ===
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+
+# === 운영 런북 활성본 (선택) ===
+# 활성화한 런북에 민감한 운영 정보가 들어가면 주석 해제:
+# docs/ops/ops-runbook.md
+
+# === 프로젝트별 추가 ===
+# <이 프로젝트 고유의 무시 대상을 여기에>
