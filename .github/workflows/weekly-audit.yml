@@ -1,0 +1,21 @@
+# 주간 자동 점검: 1인 프로젝트의 "자는 동안 일하는 직원".
+# push가 없어도 매주 게이트·의존성 취약점을 점검한다 (방치된 레포의 조용한 부패 감지).
+name: weekly-audit
+on:
+  schedule:
+    - cron: '0 21 * * 5'   # 매주 토요일 아침 6시 KST (금 21:00 UTC)
+  workflow_dispatch: {}      # 수동 실행도 가능
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: gates
+        run: |
+          sh docs/ops/kit/spec-gate.sh
+          sh docs/ops/kit/golden-gate.sh
+          sh docs/ops/kit/escalation-gate.sh
+          sh docs/ops/kit/consistency-gate.sh
+      # 스택 정해지면 아래 주석을 풀고 스택에 맞게 교체 (G19 의존성 검사의 자동화)
+      # - name: dependency-audit
+      #   run: npm audit --audit-level=high   # 또는 pip-audit 등

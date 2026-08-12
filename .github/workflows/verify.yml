@@ -1,0 +1,16 @@
+# 참조 어댑터(GitHub Actions). 다른 CI면 같은 스텝 이식. 스택·플랫폼 무관.
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: spec-gate          # In Progress PRD 필수칸 비면 차단
+        run: sh docs/ops/kit/spec-gate.sh
+      - name: golden-gate        # Done PLAN에 골든셋(/validate) 결과 없으면 차단
+        run: sh docs/ops/kit/golden-gate.sh
+      - name: escalation-gate   # 에스컬레이션 경로 미설정 차단(단일 에이전트는 [SINGLE-AGENT] 마커로 면제)
+        run: sh docs/ops/kit/escalation-gate.sh
+      - name: consistency-gate  # README 요약부가 본체(CHANGELOG)를 따라오는지 (lag 3회 재발 방지)
+        run: sh docs/ops/kit/consistency-gate.sh

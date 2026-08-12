@@ -1,0 +1,22 @@
+# 참조 어댑터(GitHub Actions). 다른 CI면 같은 스텝만 옮기면 된다: 플랫폼·스택 무관.
+#
+# v2.38: 게이트 스텝을 여기 따로 나열하지 않는다. verify.sh가 게이트 목록의
+#   정본이다(spec·golden·escalation·consistency + 프로젝트 검사). 여기서 개별
+#   게이트를 또 나열하면 목록이 두 벌이 되고, 실사용에서 실제로 그 두 벌이
+#   어긋나 CI가 절반만 보고 초록을 찍은 사고가 있었다. 그래서 CI는 verify.sh를
+#   그대로 부르기만 한다.
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: block-unfilled-bindings   # 미완성 슬롯/스텁이 남았으면 머지 전에 차단
+        run: |
+          if grep -RnoE '<채우기|<\.\.\.>|<예:|verify\.sh 미구현|<PROJECT_NAME>' \
+               CLAUDE.md verify.sh 2>/dev/null; then
+            echo ": error: 미완성 슬롯/스텁이 남아 있습니다: 채운 뒤 머지하세요"; exit 1
+          fi
+      - name: verify   # 정본: spec-gate·golden-gate·escalation-gate·consistency-gate + 프로젝트 검사
+        run: sh ./verify.sh
