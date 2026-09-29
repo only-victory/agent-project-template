@@ -31,7 +31,7 @@ A. **자동로드 지침 파일**
 
 B. **강제 게이트(kit) 배선 제안**
    - `kit/verify.sh`를 2)에서 찾은 실제 검사로 채워 루트에 둘지 제안(비우면 의도적 fail = 검증 빈칸 차단).
-   - `kit/hooks/guard.sh`+`settings.json`을 `.claude/`에 설치하고 deny 패턴에 이 레포 위험 명령 추가할지 제안.
+   - 템플릿의 `.claude/hooks/guard.sh`+`.claude/settings.json`을 같은 경로로 설치하고 deny 패턴에 이 레포 위험 명령 추가할지 제안.
    - `kit/ci.example.yml`을 이 레포 CI로 이식할지 제안.
    - 이미 있는 게이트는 **새로 만들지 말고** "있음 → 통과·존중"으로 기록. 없으면 "없음 → 규율로 강제".
    - 위 게이트 **생성·설치는 전부 내 승인 후**.

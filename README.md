@@ -24,6 +24,8 @@
 
 > **왜 필요한가**: 방법론 문서·슬래시 명령(`/spec` 등)·권한 설정(`settings.json`)은 OS 무관하게 작동한다. 하지만 검증 게이트와 위험 명령 차단 훅(`guard.sh`, 2차 안전망)은 `sh`가 있어야 돈다. **PowerShell·CMD 단독으로는 이 스크립트들이 동작하지 않아 안전망이 빠진다.**
 >
+> **이미 Windows에서 받아둔 레포**(v2.50 이하)는 v2.51을 받은 뒤 Git Bash에서 한 번만 실행: `git ls-files -z -- '*.sh' | xargs -0 rm -f && git checkout -- '*.sh'`. 셸 스크립트만 지우고 LF로 다시 꺼낸다(다른 파일 수정은 그대로). `git add --renormalize .`만으로는 이미 CRLF로 꺼낸 파일이 안 고쳐진다(실측). 커밋 안 한 `.sh` 수정이 있으면 먼저 커밋.
+>
 > IDE(Antigravity·VS Code 등)에서 쓸 때는 **IDE 내장 터미널이 WSL 또는 Git Bash를 가리키도록** 설정한 뒤 Claude Code를 실행하면 된다.
 
 ### 가져오기(다운로드)만 할 때: **Node.js 하나면 끝**
@@ -135,7 +137,7 @@ claude
 
 **진입점 3개**
 - `GETTING-STARTED.md`: 여기서 시작 (입문 가이드)
-- `CLAUDE.md`: 에이전트 자동 로드 진입점 (아래 규율 10개 import)
+- `CLAUDE.md`: 에이전트 자동 로드 진입점 (아래 규율 6개 import, 4개는 명령 실행 시 지연 로딩)
 - `STACK-OPTIONS.md`: 스택·에셋 참고 카탈로그 (정보 제공용, 강요 아님)
 
 **docs/ops/ : 에이전트가 따르는 규율** (자동 로드 10 + 참조 7)
@@ -143,11 +145,12 @@ claude
 - `spec-interview`: 막연한 목표 → §0 동기 + 11축 명세 인터뷰 (깊이 선택)
 - `guardrails`: 기술·보안·HITL·퀄리티 원칙 (공개 전 유출 점검 포함)
 - `golden-set`: 의미 검증 질문(G1~G14) + 작업 유형별 라우팅
-- `memory-context`: 기억=파일, 세션 연속성·인수인계·멀티 디바이스·세션 길이
+- `memory-context`: 기억=파일, 세션 시작 복원·세션 길이 (상시 로드)
+- `handoff-guide`: 인수인계 서식·멀티 디바이스·RAG (`/handoff`·`/resume` 때만 읽음)
 - `multi-agent`: 멀티에이전트 두 형태 구분, 작업 공간 분리
 - `roadmap`(opt-in)·`decision-support`·`retro`·`intent-routing`
 - 참조: `harness-design`(강제 설계 근거)·`doc-sync`·`apply-loop.prompt`(기존 레포 접목)
-- `kit/`: 게이트 구현체(verify·spec-gate·golden-gate·escalation-gate·consistency-gate)·스택별 recipes·guard.sh 훅
+- `kit/`: 게이트 구현체(verify·spec-gate·golden-gate·escalation-gate·consistency-gate)·스택별 recipes (훅·권한 정본은 `.claude/`)
 
 **docs/specs/ · docs/plans/ : 명세와 이력**
 - PRD·ADR(결정 기록) / PLAN(작업 명세, 날짜·동기 헤더)·INDEX(전체 현황)·archive·CHANGELOG
@@ -187,6 +190,19 @@ claude
 
 최근 주요 변경 (전체는 [CHANGELOG.md](./CHANGELOG.md) 참고):
 
+- **v2.51**: 같은 판정을 네 곳이 따로 하고 있었다: 상태 판정 단일화(status-vocab.conf + plan-status.sh) + stop 훅 범례 오탐·한글·공백 경로 수정 + session-start 경로·원장 + .gitattributes
+- **v2.50**: 막는다던 가드가 22개 중 15개를 통과시켰다: guard.sh 토큰 판정 재작성(51종 실측, dash·bash·macOS awk) + kit 사본 폐기 + force push 과차단 수정
+- **v2.49**: 읽기 전용이라던 규칙이 삭제를 통과시켰다: /doctor 실측 반영. 허용 규칙 접두 매칭 제거 + find 삭제형 차단 + 트립와이어 글자 단위 교정 + handoff-guide 분리
+- **v2.48**: 철학은 맞았고 형식이 어긋나 있었다: 공식 프롬프팅 가이드 대조 7건 반영(역할 문장·멈춤 조건 단일화·절 순서·볼드 72쌍 제거·example 태그·압축 대응·연혁 이관)
+- **v2.47**: 긴 호흡은 끊겨도 이어져야 긴 호흡이다: /run 체크포인트(기능 단위 커밋+원장, 재개 규칙, 정렬 재독) + verifier UI 라우트(UX 독립 채점, 실제 렌더) + guard.sh 스테이징 비밀 파일 차단
+- **v2.46**: 경고등은 첫 시동에 울렸다: 6층 하네스·2026 동향 대조(방향 유지) + setup-check 컨텍스트 무게 트립와이어(첫 실행 즉시 발동, 70KB 실측 앵커링)
+- **v2.45**: 한 기능 끝나면 멈추는 건 규칙이 없어서다: /blueprint(3층 문서 트리 선설계) + /run(연속 실행, 멈춤 조건 4개 한정) + agent-loop §1-3
+- **v2.44**: 게이트가 추측하면 데이터 파일이 계획서로 오인된다: EXCLUDE에 HANDOFF·RETRO 추가, 본문 폴백 폐기(상태 필드 없는 PLAN은 명시 FAIL)
+- **v2.43**: 산문 규칙과 대화 규칙은 다른 파일이다: 문체 가이드 이원화(대화용 명료성 3줄은 guardrails, 전문은 writing-style.md 지연 로딩)
+- **v2.42**: 인터뷰는 끝났는데 매번 다시 앉는다: 자동 import 10→6개(지연 로딩 전환), 세션 시작 토큰 47% 절감(실측 12,800토큰). 안전장치는 intent-routing 기존 배선으로 충당
+- **v2.41**: 산출물 어투는 있는데 대화 어투는 없었다: guardrails.md에 대화 어투(개조식) 신설
+- **v2.40**: 맥락 없이 캐묻는 질문은 AI만 아는 질문처럼 느껴진다: spec-interview에 "맥락 먼저, 질문은 그다음" 규칙 신설 + §3 질문 가이드 무설명 용어 5곳에 괄호 풀이 추가
+- **v2.39**: 장치가 사람 눈보다 좁으면 사람이 장치가 된다: spec-gate에 남아 있던 형제 게이트 누락(어휘 리터럴) 수정 + "고쳤으면 실패 경로도 실측한다" 원칙 신설
 - **v2.38**: v2.37 실전 사후검증 반영: golden-gate 판정 어휘 사전화(완료/제출/배포/출시) + 상태 필드 앵커 제거 + verify.sh를 게이트 목록 단일 정본으로 통합(CI는 이제 verify.sh만 호출)
 - **v2.37**: 조용한 통과가 제일 나쁜 실패다: 게이트 fail-closed 전환(인식 실패=FAIL). 스캔 범위 PLAN-*.md 고정 → 상태 보유 문서 전체. CI 배선(템플릿용/프로젝트용) 확인 신설
 - **v2.36**: 명세 공백은 AI가 채운다: UI 값 정본(`ui-tokens.md`) + PRD 화면 명세(§6-3-1) + 인터뷰 §8-layout + 골든셋 G7b-G7d. 덧붙여 "동일 품질은 불가능, 동일 합격선만 가능" 2층 구조(1층 `agent-loop §1-1` 불변 / 2층 `model-calibration.md` 기본 꺼짐)

@@ -16,53 +16,37 @@
 #
 # 판정 어휘(v2.38): "Done" 영문 리터럴 고정이 아니라 문서 종류별 사전으로 확장.
 #   이유(실마찰): 실사용 레포가 "완료"·"제출"·"배포"·"출시"로 쓰는데 영문 done만
-#   찾아서 스캔 범위를 넓힌 뒤에도 계속 못 물었다. **아래 CLOSED 사전이 이 레포의
-#   실제 어휘와 다르면 프로젝트에서 직접 넓힌다** (스택 무관 원칙과 같은 이유로,
-#   템플릿이 모든 언어·서식을 강제할 수 없다. 여기가 그 커스터마이즈 지점이다).
+#   찾아서 스캔 범위를 넓힌 뒤에도 계속 못 물었다. v2.51부터 닫힘 어휘는
+#   `status-vocab.conf`(정본)의 PLAN_CLOSED·RELEASE_CLOSED에 있다. 이 레포 표기와
+#   다르면 그 파일만 넓힌다(여기가 커스터마이즈 지점).
 #
 # 앵커 주의(v2.38): 상태 줄에 `^` 앵커를 걸지 않는다. 실사용 머리말은
 #   `> 생성: ... · 최종 수정: ... · 상태: **배포 완료**`처럼 상태가 줄 가운데
 #   오는 경우가 흔하다. 줄 머리 앵커는 이런 문서에서 조용히 아무것도 못 잡는다.
 # 의존: python3.
 exec python3 - "$@" << 'PY'
-import glob, io, re, sys
-EXCLUDE = {"CHANGELOG.md", "INDEX.md", "MEASUREMENTS.md", "BACKLOG-deferred.md"}
-
-# 문서 종류별 "닫힘/내보냄" 어휘. 프로젝트 실제 표기에 맞게 이 사전만 넓히면 된다.
-CLOSED = {
-    "PLAN": r'done|완료',
-    "RELEASE": r'done|완료|제출|배포|출시',
-}
-def kind_of(path):
-    name = path.split("/")[-1]
-    return "RELEASE" if name.startswith("RELEASE-") else "PLAN"
-
-def status_value(s):
-    """`상태:`/`status:` 뒤의 값(첫 등장). 줄 머리로 앵커하지 않는다:
-    실사용 머리말은 상태가 줄 가운데(`... · 상태: ...`)에 오는 경우가 흔하다."""
-    m = re.search(r'(?i)(?:상태|status)\s*[:|]\s*([^\n]*)', s)
-    return m.group(1) if m else None
+import io, re, subprocess, sys
+# v2.51: 상태 판정은 plan-status.sh(단일 판정기)가 한다. 닫힘 어휘(PLAN_CLOSED·RELEASE_CLOSED)는
+#        status-vocab.conf 정본. 이 파일에 어휘를 다시 적지 않는다.
+r = subprocess.run(["sh", "docs/ops/kit/plan-status.sh"], capture_output=True, text=True)
+if r.returncode != 0:
+    sys.stderr.write("golden-gate 실패: 상태 판정기(plan-status.sh) 오류\n  " + r.stderr)
+    sys.exit(1)
 
 bad = []
-files = [f for f in glob.glob("docs/plans/*.md")
-         if f.split("/")[-1] not in EXCLUDE and not f.endswith(".template.md")]
-for f in files:
-    s = io.open(f, encoding="utf-8").read()
-    value = status_value(s)
-    kind = kind_of(f)
-    if value is None or not re.search(CLOSED[kind], value, re.I):
+rows = [l.split("\t") for l in r.stdout.splitlines()]
+for col in rows:
+    f = col[0]
+    if col[1] == "nostatus" or col[2] != "1":   # 닫힘/내보냄이 아니면 건너뜀
         continue
+    s = io.open(f, encoding="utf-8").read()
     # 골든셋 결과 섹션이 있는가
     if "골든셋 검증 결과" not in s and "Golden" not in s:
         bad.append(f"{f}: 골든셋 검증 결과 섹션 없음 (/validate 미실행 의심)")
         continue
-    # G1~G3 판정이 채워졌는가 (Pass/Hold/Retry 또는 통과/보류/재시도 표기)
-    missing = []
-    for g in ["G1", "G2", "G3"]:
-        # 같은 줄에 판정어가 있어야 함
-        pat = re.compile(rf'{g}\b.*(Pass|Hold|Retry|통과|보류|재시도|✅|⚠|❌)')
-        if not pat.search(s):
-            missing.append(g)
+    # G1~G3 판정이 채워졌는가 (같은 줄에 판정어가 있어야 함)
+    missing = [g for g in ("G1", "G2", "G3")
+               if not re.search(rf'{g}\b.*(Pass|Hold|Retry|통과|보류|재시도|✅|⚠|❌)', s)]
     if missing:
         bad.append(f"{f}: 골든셋 {', '.join(missing)} 판정 누락")
 
@@ -72,5 +56,5 @@ if bad:
         + "\n  ".join(bad) + "\n"
     )
     sys.exit(1)
-print(f"golden-gate OK ({len(files)}개 문서 훑음)")
+print(f"golden-gate OK ({len(rows)}개 문서 훑음)")
 PY

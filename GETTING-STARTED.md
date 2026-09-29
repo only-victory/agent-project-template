@@ -95,7 +95,8 @@ Claude Code면 슬래시 명령으로 줄일 수 있다:
 - `docs/ops/guardrails.md`: 기술·UI·보안(웹 OWASP + AI/LLM OWASP)·HITL·퀄리티 게이트.
 - `docs/ops/multi-agent.md`: 역할 분리 · 퀄리티 게이트 3단계 · HITL 트리거 · 에스컬레이션.
 - `docs/ops/golden-set.md`: 의미 검증 질문 세트 (/validate 실행).
-- `docs/ops/memory-context.md`: 세션 간 연속성 · ADR 재사용 · 인수인계.
+- `docs/ops/memory-context.md`: 세션 간 연속성 · ADR 재사용.
+- `docs/ops/handoff-guide.md`: 인수인계 서식 · 멀티 디바이스 (/handoff·/resume 때 읽음).
 - `docs/specs/decisions/ADR-000-collaboration-principles.md`: 인간=목표·결정 / AI=실행+정직 보고.
 - `docs/plans/BACKLOG-deferred.md`: 지금 미룬 것 + 언제 켤지 신호.
 

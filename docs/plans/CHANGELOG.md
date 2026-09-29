@@ -1,5 +1,173 @@
 # CHANGELOG
 
+## v2.51.0: 2026-09-29
+### 같은 판정을 네 곳이 따로 하고 있었다: 감사 2순위 + 외부 검토 반영
+- 배경: v2.50 감사 잔여 + 외부 검토 3건(stop 훅 범례 오탐, session-start 경로·착수, .gitattributes). 검토 결과 셋 다 실마찰. 근본 원인은 상태 판정 로직 4벌(형제 누락 6회째)
+- 변경:
+  · 신규 `docs/ops/kit/status-vocab.conf`: IN_PROGRESS·BLOCKED·PLAN_CLOSED·RELEASE_CLOSED·EXCLUDE. ERE, 대소문자 무시, `\s` 대신 공백+`*`
+  · 신규 `docs/ops/kit/plan-status.sh`: POSIX sh + awk. 출력 `경로\topen\tclosed\tblocked\t상태값` 또는 `경로\tnostatus`(PLAN-·RELEASE-만). 어휘 파일 없음·빈 항목이면 exit 1
+  · `spec-gate.sh`·`golden-gate.sh`: python 본문의 어휘·파싱 제거, plan-status.sh 출력만 소비. 26개 픽스처 결과 v2.50과 동일(diff 0)
+  · `stop-verify-gate.sh`: 판정기 사용(범례 오탐·한글 누락 해소), 판정기 실패 시 exit 2, `git status --porcelain -z`로 공백 경로·이름 변경 처리. 9케이스 실측(템플릿 원본 0, 한글 착수 흔적 없음 2, 검증 후 무변경 0, 공백 경로 수정 2, 완료만 0, 어휘 없음 2, stop_hook_active 0, 공백 경로 이름 변경 2, docs·md만 0). dash·BWK awk 동일
+  · `session-start.sh`: ROADMAP*.md 탐색(루트 → docs/specs → docs/plans, docs/ops 제외), 진행/막힘 PLAN 최대 5줄(판정기), 판정기 실패 경고, /run 원장 "다음 착수" 마지막 줄, 원장 제외 마지막 `## ` 제목, HANDOFF 갱신 뒤 커밋 수. 항상 exit 0. 템플릿 원본에서 예시 행 주입 없음 확인
+  · 신규 `.gitattributes`: `*.sh text eol=lf`. README Windows 절에 기존 클론 1회 조치: `git ls-files -z -- '*.sh' | xargs -0 rm -f && git checkout -- '*.sh'` (renormalize는 작업 폴더 CRLF를 못 고침: autocrlf=true 재현으로 실측. 다른 파일 수정 보존·guard 통과 확인)
+  · 문서: CLAUDE.md §2, golden-set.md, guardrails.md, HOOKS.md 설명을 conf·판정기 기준으로
+- 검증: ShellCheck warning+ 0, sh -n 전체, 게이트 4종 exit 0, guard 51/51(dash·bash·BWK), setup-check 31,946자, settings.json 파싱, em-dash 기존 예외 1곳만
+- 미검증: Windows 실기기(Git Bash) 재현은 못 함. Linux에서 core.autocrlf=true로 근사
+- 다음(v2.52): 게이트 단일 진입점(verify.sh·verify.yml·weekly-audit), PLAN 상위 문서 링크
+
+## v2.50.0: 2026-09-29
+### 막는다던 가드가 22개 중 15개를 통과시켰다: 감사 1순위 반영
+- 배경: v2.49 전수 감사(ShellCheck 0.11.0 POSIX 모드, dash·bash 실행, 실제 JSON 훅 입력 22종). High 3건 = 권한 격리 층
+- 변경:
+  · `.claude/hooks/guard.sh` 전면 재작성(토큰 판정). ① awk로 JSON command 값만 추출, 실패 시 원문 전체 검사(과차단 쪽으로 실패) ② 인용부호 제거·공백 통일 ③ 구간 분리 전 검사: curl/wget→셸 파이프, DROP TABLE/DATABASE/SCHEMA·TRUNCATE, 포크 폭탄 ④ 구간별: sudo·env·xargs 등 래퍼 건너뛰기, rm(재귀 옵션 모든 표기 + 루트·홈·상위·현재 전체·시스템 디렉터리 대상), find(위험 경로 + -delete 또는 -exec/-execdir/-ok 뒤 rm), git push(-f 계열 옵션 토큰·--force*·+refspec), git reset --hard, git clean -f, chmod/chown/chgrp -R 시스템·홈 대상, mkfs, dd if=/of= ⑤ 스테이징 비밀 파일 검사(v2.47) 유지, 검사 대상을 payload에서 command로 좁힘
+  · 실측: 차단 33 + 통과 18 = 51종. dash 51/51, bash 51/51, original-awk 20231127(BWK, macOS 계열) 51/51. ShellCheck warning+ 0. 100회 1.81초(1회 약 18ms)
+  · `docs/ops/kit/hooks/guard.sh`·`docs/ops/kit/settings.json` 삭제(kit/settings는 PreToolUse 훅 1개뿐인 초기 버전이라 allow/ask/deny 전무). 참조 갱신: kit/README 2곳, apply-loop.prompt.md:34, harness-design.md 58·71·86, README 151
+  · `.claude/settings.json` deny: `git push*--force*`·`git push*-f*` → `git push -f*`·`git push --force*`·`git push * -f*`·`git push * --force*`·`git push * +*` (fnmatch 근사로 정상 push 3종 통과·강제 4종 차단 확인)
+  · `guardrails.md` 게이트 설계 원칙 +2줄: 토큰 판정, 로직 단일 위치
+- 미검증: settings.json glob 해석은 Claude Code 실매처가 아니라 fnmatch 근사. guard.sh는 셸 구문을 완전히 해석하지 않는다(eval·변수 간접 참조·base64 디코딩 실행 같은 난독화는 못 잡음). 이건 1차 방어선(settings)과 사람 승인이 맡는다는 전제
+- 남은 감사 항목(2·3순위): session-start 4건, stop-verify-gate 범례 상시 매칭, .gitattributes, 게이트 목록 3벌, PLAN 상위 링크
+
+## v2.49.0: 2026-09-29
+### 읽기 전용이라던 규칙이 삭제를 통과시켰다: /doctor 실측 반영
+- 배경: 사용자가 Claude Code에서 `/doctor` 실행. 정리 제안은 사용자가 "No"로 거절(템플릿 레포를 /doctor가 직접 고치면 듀얼 CHANGELOG·게이트·zip 루틴을 건너뛰므로) → 같은 내용을 이 판에서 루틴대로 반영. 권한 기본 모드 auto(전역) 제안은 거절 유지(비가역=사람, 구멍 막기 전 문턱 낮추기 금지)
+- 보안 (실사고급):
+  · `.claude/settings.json` allow: `X*` 접두 매칭 15개 → `X` + `X *` 쌍으로. `sh*gate.sh` → `sh docs/ops/kit/*-gate.sh`(/doctor 미탐지, `shred` 매칭 구멍)
+  · ask 추가 8개: find `-delete`·`-exec`·`-execdir`·`-ok`·`-fprint`, git diff/log/show `--output`
+  · `guard.sh` deny에 `find (/|~|$HOME|..) ... (-delete|-exec(dir)? rm)` 추가. 실측 10종: 루트형 삭제 4종 차단, 읽기 find·-exec grep·./build 삭제(→ask 몫) 통과, 기존 rm -rf·force push 차단 유지
+- 트립와이어: 단위 바이트 → 글자. LIMIT_KB=70 → LIMIT_CHARS=40000. 현재 31,343자(약 7.8k 토큰). 측정 실패 시 통과 아님(fail-closed). 고장 케이스(기준 1000자)로 빨개짐 확인
+- /doctor 정리 반영: CLAUDE.md v2.42 이력 문단 삭제(Check 3) / memory-context §2·§2-1·§4 → `docs/ops/handoff-guide.md`(Check 4, 절 번호 유지). 참조 갱신: handoff.md 2곳, resume.md, spec-interview.md:207, README, GETTING-STARTED
+- 문서 정합: guardrails 게이트 설계 원칙에 "권한 사전 허용은 명령 경계까지" 1줄, PERMISSIONS.md에 "규칙 쓰는 법" 절
+- 정정: 이전 토큰 수치(v2.36 "2.4만", v2.42 "4만", v2.46 "62KB")는 바이트÷4 추정이라 한글에서 2~3배 과대. 이력은 고치지 않고 여기 정정만 남김
+- 미검증: `echo *` allow가 셸 리다이렉트(`echo x > file`)까지 허용하는지는 Claude Code 매칭 규칙 확인 필요(이번엔 판단 보류). 새 허용 규칙 문법(`X *`)이 사용자 Claude Code 2.1.28x에서 의도대로 동작하는지 실사용 확인 필요
+
+## v2.48.0: 2026-09-18
+### 철학은 맞았고 형식이 어긋나 있었다: 공식 프롬프팅 가이드 대조 반영
+- 기준: platform.claude.com 프롬프팅 베스트 프랙티스(현행) + code.claude.com 메모리 문서. 검색·fetch로 원문 확인
+- 판정 요약: Role 누락 / Context 우수(과다) / Instructions 순차 ✅ / Constraints 부정형 과다 / Examples 태그 미사용 / 길이 경계(agent-loop 194줄) / 강조 과잉 / 자기검증 지시 없음 ✅ / 긴 실행 압축 문장 누락 / 파생 정보 슬롯
+- 변경:
+  · F1 `CLAUDE.md` 역할 2줄 신설
+  · F2 멈춤 조건 단일화: CLAUDE.md §1은 §1-3 참조로, agent-loop §1-3 ②에 "비용 상한" 흡수, run.md 동기화
+  · F3 agent-loop §1-2↔§1-3 위치 교정(본문 무변경)
+  · F4 문장 전체 볼드 72쌍 제거(7파일). [MUST]/[SHOULD] 태그 유지. 부정형→긍정형 8건 손수 재작성(§1-2 인용 기준·§1-3 전진·대화 어투 2·게이트 원칙 2·검증 문장 1·멈춤 문장 1)
+  · F5 `<example>` 태그 4개 신설(bad/good 쌍)
+  · F6 agent-loop §1-3에 컨텍스트 압축 대응 1줄
+  · F7 agent-loop 도입부 v2.42 연혁 → 규칙 1줄. CLAUDE.md §3 레이아웃 슬롯 안내 수정
+  · 이모지 헤더 제거(CLAUDE.md·agent-loop)
+- 검증: 볼드 짝 무결성(7파일 홀수 0), 게이트 4종 exit 0, 트립와이어 63KB, em-dash 신규 0
+- 한계: 부정 지시 66→63. 나머지 긍정형 전환은 규칙 손댈 때마다 점진
+- 보류: path-scoped rules(공식 기능) 문법 확인 후 v2.49 후보
+
+## v2.47.0: 2026-08-31
+### 긴 호흡은 끊겨도 이어져야 긴 호흡이다: /run 체크포인트 + UX 독립 채점
+- 배경: 2026-08-31 동향 검색(긴 실행 에이전트 패턴·UI/UX 방법론). v2.46 동향 대조는 반복하지 않음
+- 변경:
+  · `run.md`: 재개 규칙(HANDOFF `## /run 진행 원장`의 "다음 착수"), 기능마다 정렬 재독(L0·PLAN 파일 재독, 요약 기억 금지), 체크포인트(로컬 커밋 + 원장 1줄, 서식 명시), 늦은 승인 후 원장·git status 재확인, 커밋 권한 안내
+  · `verifier.md` UI 라우트: 실제 렌더 필수(불가 시 "판단 불가"), G6~G7d 채점, G7a 참고 시안 대조(없으면 Hold), G6 동선 직접 밟기
+  · `validate.md`: UI 유형이면 verifier 위임 + "UX 채점자: verifier" 표기. 위임 불가 환경은 "자기 채점(독립 검증 아님)" 명시
+  · `agent-loop §1-3`: 체크포인트 기능 단위·정렬 드리프트 방어 [MUST] 2줄
+  · `guard.sh`: commit/push 시 `git diff --cached --name-only`로 .env·pem·key·p12·pfx·credentials·secrets 검사, 발견 시 exit 2. 기존엔 명령 문자열만 검사해 스테이징 파일은 구멍이었음
+  · `PERMISSIONS.md`: commit ask 유지하되 /run 시 세션 단위 항상 허용 가능 근거(guard.sh 2차망) 명시
+- 검증: guard.sh 5종 실측(.env 스테이징 차단 / 제거 후 통과 / .pem 차단 / 비커밋 명령 미검사 / force push 기존 차단 유지). 게이트 4종 exit 0. HANDOFF는 v2.44부터 게이트 EXCLUDE라 원장 표의 "Done"이 golden-gate에 오탐되지 않음 확인
+- 보류: 참고 사례 벤치마킹 루브릭, Agent UX 패턴(조건부), 디자인 카탈로그 스킬
+- 미검증: /run이 실제로 세션 단절 후 원장에서 정확히 재개하는지, verifier가 렌더 수단을 실제로 확보하는지(정적 HTML·dev 서버 환경차)는 실프로젝트 1회 완주 필요
+
+## v2.46.0: 2026-08-31
+### 경고등은 첫 시동에 울렸다: 6층 하네스 대조 + 컨텍스트 트립와이어
+- 배경: Harness Engineering 6층 참고자료 + 2026-08 동향 검토 요청. 웹 검색으로 동향 확인(harness engineering·SDD)
+- 6층 대조: Guides·Loop·Sensors·Memory 강함 / Permissions 중간(tool budget 기계화 없음) / Observability 얇음(cost tracking·trip wire 없음). Observability 공백은 v2.42 실사고와 일치
+- 동향 대조: 방향 유지 판정. §3.2=Hashimoto 전제, verifier=SDD 별도 검증 에이전트 패턴, spec-anchored 입장 일치. Thoughtworks 경고(명세 검토 부담)는 /blueprint에 유효
+- 변경(A): `setup-check.sh` 컨텍스트 무게 트립와이어. import 총량 + CLAUDE.md 합산, 기준 초과 시 경고 + 최대 파일 지목 + 지연 로딩 안내
+  · 첫 실측: 60KB 기준에 62KB로 즉시 발동. 원인 agent-loop.md 17→21KB(이번 세션 §1-1·1-2·1-3). 기본 상태 발동 = 경고 피로 위험 → 기준 70KB로 실측 앵커링(주석에 근거 명시)
+- 보류(B·C): BACKLOG #9 검토 체크리스트(승격 조건·사각지대 경고 필수), #10 수용 기준 형식(판정 불가 사례 발생 시). #11 agent-loop 다이어트 신규 등록
+- 미검증: 70KB 기준이 적정한지는 다음 성장 시 재발동 여부로 판정. 트립와이어가 실제로 "고치는 행동"까지 이어지는지는 사람 몫
+
+## v2.45.0: 2026-08-27
+### 한 기능 끝나면 멈추는 건 규칙이 없어서다: 3층 트리 + 연속 실행
+- 배경(실마찰): 긴 호흡 개발이 안 됨. 기능 1개 후 정지. 실로그에서 3층 트리를 즉석 발명하는 장면 확인
+- 신설:
+  · `.claude/commands/blueprint.md`: 문서 트리 선설계 명령(코드 금지, L0→L1 승인→L2 필수3칸 전부→spec-gate 일괄→착수가능/대기 구분 보고)
+  · `.claude/commands/run.md`: 연속 실행 명령(사이클: PLAN→구현→verify→validate→Done→1줄 보고→다음)
+  · `docs/specs/areas/area.template.md`: L1 영역 구조 문서(상태 필드 없음, 게이트 대상 아님: 기능별 수용기준은 L2 PLAN 소관)
+  · `agent-loop §1-3`: 연속 모드 정본. 멈춤 조건 4개 한정, 그 외 확인 대기 금지. 검증 생략 아님 명시. unattended와 구분
+  · CLAUDE.md §5에 진입 한 줄
+- 재사용: "무엇/어떻게/수용기준" = 기존 필수 3칸 그대로. L2는 prd.template 재사용. 신규 게이트 없음(영역 문서는 구조 문서라 게이트 불필요 판정)
+- 토큰: 신설 지침 전부 명령 파일(비-import). agent-loop 추가분만 상시(약 0.9KB)
+- 미검증: /blueprint→/run 전체 사이클을 실프로젝트에서 1회 완주해야 검증됨. [?] 건너뛰기·배치 질문이 실제로 흐름을 안 끊는지 관찰 필요
+
+## v2.44.0: 2026-08-12
+### 게이트가 추측하면 데이터 파일이 계획서로 오인된다
+- 배경(오탐 신고): HANDOFF.md 제목 "인수인계: itsales.infra 착수"가 spec-gate에 걸려 필수 3칸 요구받음
+- 재현 검증: 신고 3개 주장 전부 코드 원문으로 확인(폴백 실재·"착수" 매칭·EXCLUDE 누락). 추가 발견 2건: RETRO.md 같은 계열 누락, 뭉실 세션의 Draft 오탐도 같은 폴백이 원인
+- 변경:
+  · spec-gate·golden-gate EXCLUDE += HANDOFF.md, RETRO.md (형제 동시 수정)
+  · spec-gate 본문 폴백 폐기 → 상태 필드 없는 PLAN-·RELEASE- 이름 파일은 명시 FAIL("상태 필드 추가하라"), 그 외 이름은 스킵. 추측 제거 + fail-closed 유지 양립
+- 검증: 6종 케이스 실측(사고 재현 통과 전환·RETRO 오탐 부재·상태 없는 PLAN 명시 FAIL·기존 FAIL 유지·비PLAN 스킵·정상 상태 양 게이트 OK)
+- 미검증: 신고된 실제 프로젝트(itsales.infra)에 적용해 재발 없는지는 그쪽에서 확인 필요
+
+## v2.43.0: 2026-08-12
+### 산문 규칙과 대화 규칙은 다른 파일이다: 문체 가이드 이원화 반영
+- 배경: 사용자 제공 문체 가이드(금지 16종·연결·용어·인물·출처) 반영 요청
+- 판정: 통째 import 부적합. 근거 3개: 산문 전용 규칙 다수(개조식 대화와 지향 상이), 3,700토큰 상시 부담(v2.42 절감 잠식), v2.42 판정 기준("특정 상황 전용은 import 금지") 해당
+- 변경:
+  · A: `guardrails.md` 대화 어투 절에 [MUST] 2줄 추가: 단언 가능하면 단언(이중 완곡 금지) / 형식 종결·결산 라벨·재정리 금지
+  · B: `docs/specs/writing-style.md` 신설(5.4KB). 원문 충실 전사, em-dash는 §4 규칙대로 콜론 치환. 머리에 적용 범위(산출물 전용·대화 미적용)와 로드 방식(import 금지, 요청 시 읽기) 명시
+  · CLAUDE.md 참조 블록에 포인터 1줄
+- 제외(사유): 인물명·출처·인용구·접속사 규칙은 대화에 무의미, B 파일에만 존재. 구어체 동사 금지(박는다·가른다 등)는 대화에선 자연스러워 A에서 제외, 산출물(B)에만 적용
+- 미검증: 실제 글 산출물 요청 시 AI가 writing-style.md를 빠짐없이 읽는지 확인 필요. 대화 어투 3줄이 과하게 딱딱한 응답을 만드는지도 관찰 대상
+
+## v2.42.0: 2026-08-12
+### 인터뷰는 끝났는데 매번 다시 앉는다: 지연 로딩 전환
+- 배경(자체 점검 리포트): 세션 자동 로드 약 40,000토큰. spec-interview.md는 인터뷰 안 하는 세션에도 매번 로드
+- 재검증(전 항목 실측):
+  · /spec·/init-project·/retro·/escalate 명령 파일에 "docs/ops/X.md 절차대로" 지시 실재 확인 → 이중 부담 확정
+  · agent-loop.md의 "지침 파일은 짧게 유지" 원칙 문장 실재 확인 → 원칙 자기위반 확정
+  · 리포트가 예외로 남긴 roadmap.md 독자 검증: /resume에서만 전문 참조, 타 상시 문서는 개념([?] 미정)만 인용 → 같은 계열로 판정, 제외 대상에 추가
+  · memory-context.md는 잔류 판정: session-start 훅이 "없거나 어긋나면 memory-context §1 절차로 확인"을 매 세션 폴백으로 지목 → 상시 필요성 실재
+- 변경:
+  · CLAUDE.md import 10개 → 6개 (spec-interview·retro·multi-agent·roadmap 제외)
+  · 실측 절감: 51,194 bytes ≈ 12,800토큰, 자동 로드 총량 47% 감소 (97,644 → 56,239 bytes)
+  · 안전장치 추가 안 함: intent-routing.md(잔류)가 자연어→명령 등가 연결 + 각 명령이 그 시점에 파일 읽음. 포인터 신설은 절감분 잠식이라 기각 (리포트 제안과 다른 판단)
+  · agent-loop.md에 실마찰 기록 + 신규 지침 파일 생성 시 판정 기준 추가: "매 세션 필요한가, 특정 명령에서만 필요한가"
+  · README import 개수 표기 10 → 6 갱신
+- 가져오지 않은 것: verify.sh 빌드 분리(프로젝트별 결정), 세션 기록 디스크 정리·PC 부하(환경 문제, 템플릿 범위 밖)
+- 알려진 한계: "로드맵 새로 짜줘" 류 자연어는 intent-routing 표에 직접 항목 없음. 실마찰 발생 시 라우팅 행 추가로 대응(§3.2 보류)
+- 미검증: 실제 세션에서 /spec 자연어 진입 시 spec-interview.md를 빠짐없이 읽는지, 절감이 체감 속도로 이어지는지는 다음 실사용에서 확인 필요
+
+## v2.41.0: 2026-08-12
+### 산출물 어투는 있는데 대화 어투는 없었다
+- 배경: "AI 응답이 서술형이라 AI스럽다"는 피드백
+- 재검증: guardrails.md "산출물 표기" 범위가 "글·문서·UI 텍스트·코드 주석"으로 한정돼 세션 중 대화 자체는 미포함 확인. 완전 신규 영역(§3.2 판정 불필요)
+- 변경: `## 대화 어투` 신설. 개조식 기본(명사형 어미), 공감성 서두 생략, 예외 조건(감정 예민 주제·서술형 요청 시) 명시
+- 미검증: 실제 다음 세션들에서 개조식 적용이 체감상 자연스러운지, 과도해서 딱딱하게 느껴지진 않는지 확인 필요
+
+## v2.40.0: 2026-08-12
+### 맥락 없이 캐묻는 질문은 AI만 아는 질문처럼 느껴진다
+- 배경(실사용 마찰): "/spec 인터뷰가 AI만 아는 질문을 하고 맥락 없이 물어봐서 이해하기 어렵다"는 입문자 피드백
+- 재검증: `spec-interview.md` §1 "입문자 배려" 규칙(용어 괄호 풀이)이 있는데 §3 질문 가이드 원문이 그 규칙을 어기고 있음을 grep으로 확인. "멱등성"·"graceful degradation"·"어뷰징" 무설명 노출
+- 판단: 용어 문제와 별개로 더 근본 원인은 "질문에 왜 묻는지가 없다"는 것. 용어를 다 풀어도 맥락 없이 던지면 여전히 AI만 아는 질문처럼 느껴짐
+- 변경:
+  · §1에 "맥락 먼저, 질문은 그다음" [MUST] 신설: 이유 한 문장 → 질문. 축 전환 시 "지금부터는 ○○을 정하려고 합니다" 안내
+  · 실제 문답 예시(6축 엣지·실패 모드) 1개를 규칙 바로 아래 추가해 형식 시연
+  · "이 규칙은 §3 질문 가이드의 문구를 그대로 따라 읽을 때도 적용된다" 명시: 가이드 원문 자체가 예외가 아님을 못박음
+  · §3 본문 용어 5곳에 괄호 풀이 추가: 멱등성(§5), graceful degradation(§6), 롤백(§7), 어뷰징·kill-switch(§9)
+- 패턴 관찰: "규칙은 있는데 그 규칙이 적용돼야 할 본문이 규칙을 안 지킴" ─ v2.39 형제 게이트 누락과 다른 층(문서 자기 자신)에서 같은 모양 재발. 다음에 새 축·새 게이트를 추가할 때 "이 추가분이 기존 규칙을 스스로 지키는가"를 점검하는 습관이 필요해 보이나, 코드(게이트)와 문서(가이드 원문) 두 층에서 각 1회씩이라 아직 §3.2 임계(3회) 미달로 규칙화는 보류
+- 미검증: 이 수정이 실제로 "AI만 아는 질문 같다"는 체감을 줄이는지는 다음 /spec 실행에서 확인 필요
+
+## v2.39.0: 2026-08-12
+### 장치가 사람 눈보다 좁으면 사람이 장치가 된다: spec-gate 형제 누락 수정
+- 배경(실사용 2차 사후검증): 같은 프로젝트가 v2.38 적용 후 CI 14초→6분 40초, 시험 1,030개 첫 실행 보고. 그 과정에서 5개 지적 중 4개는 이미 v2.38에서 해결됨을 대조 확인, 1개는 우리가 놓친 것으로 확인
+- 재검증: `grep -n "In Progress" docs/ops/kit/spec-gate.sh` 실행 → `if "In Progress" not in s: continue` 리터럴 그대로 확인. golden-gate는 CLOSED 사전으로 이미 고쳤는데 spec-gate는 형제 게이트인데도 같은 수정이 전파 안 됨
+- 변경:
+  · `spec-gate.sh`: `IN_PROGRESS` 어휘 사전 도입(`In Progress|착수|진행\s*중|작업\s*중`). `status_value()` 도입해 golden-gate와 동일하게 앵커 없이 상태 필드 추출. 상태 필드 자체가 없는 구식 문서를 위한 폴백(본문 전체 검색)도 추가해 이중 안전판 확보
+  · `guardrails.md` 게이트 설계 원칙: 어휘 사전화 원칙이 "Done 한 단어"가 아니라 모든 상태 리터럴에 적용됨을 명시(형제 게이트 누락 재발 방지 문구). "게이트를 고치면 실패 경로도 실측한다" 원칙 신설(저쪽이 5개 게이트를 일부러 깨서 빨개짐을 확인한 방법론 채택). 섹션 도입부에 RETRO 인용문 추가
+- 가져오지 않은 것: stop-verify-gate를 켠 것은 opt-in 설계가 의도대로 작동한 사례라 템플릿 수정 대상 아님
+- 정정(같은 턴 재검토): "내고 나서 검증했다는 정직 보고는 doc-sync 범위 내"라고 적었던 판단을 doc-sync.md 재확인 후 철회. doc-sync는 코드↔문서 불일치만 다루고 검증 순서(사전/사후)는 다루지 않음. `golden-set.md` 게이트 강제 절에 "검증 순서는 결과가 아니라 사실대로 적는다" 별도 항목 신설: 결과 표에 `검증 시점: 사전/사후` 명시
+- 미검증: spec-gate의 새 IN_PROGRESS 사전이 그 프로젝트의 실제 표기(착수/진행 중 등 정확히 무엇을 쓰는지)와 일치하는지는 확인 안 됨. 다음 재검증에서 확인 필요
+- 패턴 관찰: 이번이 두 번째로 "한 파일은 고치고 형제 파일은 놓침" 사고다(v2.36 UI 트랙 때도 아니지만 유사 계열). 향후 게이트 수정 시 "이 수정과 같은 패턴을 쓰는 다른 게이트가 있는가"를 점검 항목으로 두는 것을 고려할 만하나, 재발 1회로는 아직 규칙화 보류(§3.2)
+- 추가(같은 날 전수조사): 78파일 x 14항목 전수조사 실시. 정상 12항목(import 10개 실재, 셸 18개 문법 통과, settings.json 배선 3종 실재, 골든셋 G번호 30개 무결, 버전 삼중 일치, CLAUDE.md 60줄, 게이트 4종 exit 0, spec/golden 상태 추출 로직 동일). 깨진 참조 의심 16건 중 14건은 런타임 생성 파일 또는 경로 표기 차이로 무혐의 판정
+- 발견·수정: `docs/ops/kit/verify.sh`(이식용 시드)가 게이트 2종에 정체. 루트와 동일한 4종으로 동기화 + "정본은 루트" 주석. **형제 누락 3회째**(golden→spec 어휘, 루트→kit verify): retro 임계 충족으로 "게이트 수정 시 형제 파일 점검" 절차를 v2.40 후보로 승격(이번엔 §3.2 보류가 아니라 임계 도달)
+- 판단 보류 1건: 최종 검토일 다수가 2026-06월인 것은 버그가 아니라 신선도 신호가 정직하게 작동 중인 것. 날짜만 갱신하면 거짓이 됨. 실제 재검토 여부는 사람 결정 대기
+
 ## v2.38.0: 2026-08-12
 ### 범위는 고쳤는데 어휘·앵커·정본은 안 고쳤다: v2.37 실전 사후검증 반영
 - 배경(실사용 사후검증): v2.37을 실제 Flutter 프로젝트(RELEASE-*.md로 출시)에 적용해 돌린 세션 기록을 받음. 그 세션이 우리 v2.37을 재현·수정하는 과정 자체가 증거

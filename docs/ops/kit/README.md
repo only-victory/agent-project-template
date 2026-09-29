@@ -3,12 +3,12 @@
 `agent-loop`/`harness`가 *말*이라면 이 kit은 *게이트*다. 핵심은 단 하나의 보편 진입점.
 
 - **verify.sh**: 이 레포의 "통과" 정의(스택 무관). 에이전트·CI·사람이 *같은 한 줄*을 호출.
-- **hooks/guard.sh + settings.json**: 위험·비가역 명령 차단(PreToolUse, exit 2). *[Claude Code 어댑터]*
+- **훅·권한은 kit에 사본을 두지 않는다**: 정본은 `.claude/hooks/guard.sh`·`.claude/settings.json`. 위험·비가역 명령 차단(PreToolUse, exit 2). *[Claude Code 어댑터]* (v2.50: kit 사본이 v2.47·v2.49 수정을 못 받아 폐기)
 - **ci.example.yml**: (1)미완성 바인딩 차단 (2)verify 실행. *[GitHub Actions 어댑터: 교체 가능]*
 
 ## 설치
 1. `verify.sh` → 루트, 실제 검사 명령으로 채움, `chmod +x verify.sh`.
-2. `hooks/guard.sh` → `.claude/hooks/guard.sh` · `settings.json` → `.claude/settings.json` (둘 다 커밋).
+2. 이 템플릿의 `.claude/hooks/guard.sh`·`.claude/settings.json`을 같은 경로로 그대로 복사 (둘 다 커밋).
 3. `ci.example.yml` → `.github/workflows/verify.yml` (또는 쓰는 CI로 이식).
 4. `CLAUDE.md` §2를 **"통과 = `./verify.sh` exit 0"** 한 줄로 단순화.
 
