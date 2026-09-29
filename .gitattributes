@@ -1,0 +1,4 @@
+# 셸 스크립트는 OS와 무관하게 LF로 체크아웃한다 (v2.51).
+# Windows에서 core.autocrlf=true로 받으면 CRLF가 붙어 sh가 "$'\r': command not found"로 죽고,
+# guard.sh가 죽으면 위험 명령 차단 훅이 조용히 빠진다.
+*.sh text eol=lf

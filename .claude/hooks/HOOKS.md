@@ -8,13 +8,13 @@
 | 훅 | 시점 | 역할 |
 |----|------|------|
 | `guard.sh` | PreToolUse(Bash) | 위험 명령(rm -rf 등)·비밀 유출 패턴 차단 |
-| `session-start.sh` | SessionStart | 세션 시작 시 로드맵 위치·진행 중 PLAN·인수인계를 컨텍스트에 자동 주입 (위치 복원의 기계화) |
+| `session-start.sh` | SessionStart | 세션 시작 시 로드맵 위치(루트·docs/specs·docs/plans의 ROADMAP*.md)·진행 중/막힌 PLAN(`plan-status.sh` 판정)·/run 원장 "다음 착수"·인수인계를 자동 주입 (위치 복원의 기계화) |
 | `plan-date-check.sh` | PostToolUse(Edit·Write) | PLAN/PRD 수정 후 "최종 수정" 날짜 미갱신이면 알림 (doc-sync 센서) |
 
 ## 기본 꺼짐 (만들어져 있음: 필요하면 켠다)
 
 ### stop-verify-gate.sh (Stop 훅): "검증 없이 마무리" 차단
-- In Progress 작업이 있는데 검증 흔적(verify.sh가 남기는 `.claude/.last-verify`)이 없거나, 검증 이후 또 코드가 수정됐으면: **응답 종료 자체를 차단**하고 검증을 요구한다.
+- 진행 중 작업(`plan-status.sh` 판정: "In Progress"·"착수"·"진행 중" 등, 어휘는 `docs/ops/kit/status-vocab.conf`)이 있는데 검증 흔적(verify.sh가 남기는 `.claude/.last-verify`)이 없거나, 검증 이후 또 코드가 수정됐으면: **응답 종료 자체를 차단**하고 검증을 요구한다.
 - 가장 강력한 훅이라 기본 꺼짐. 며칠 실사용으로 다른 훅에 익숙해진 뒤 켜는 걸 권장.
 - 무한 차단 방지 내장(stop_hook_active 시 통과). docs만 수정한 세션은 면제.
 

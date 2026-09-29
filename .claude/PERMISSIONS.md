@@ -16,7 +16,7 @@ Claude Code는 기본적으로 bash 명령마다 사용자 승인을 받는다. 
 |-----------|------|----|
 | 조회·검사: list·get·status·diff·log·show·describe·ps | **allow (자동)** | 아무것도 비가역으로 바꾸지 않음 |
 | 빌드·테스트: build·test·lint·검증 스크립트 | **allow (자동)** | 프로젝트 안에서만 돎. 결과를 비가역으로 바꾸지 않음 |
-| 상태 변경: add·commit·install·실행(run)·mv·cp | **ask (확인)** | 상태를 바꿈. .env 커밋 같은 사고 가능 → 한 번 묻는다 |
+| 상태 변경: add·commit·install·실행(run)·mv·cp | **ask (확인)** | 상태를 바꿈. .env 커밋 같은 사고 가능 → 한 번 묻는다. **commit은 /run 연속 실행 시 세션 단위 '항상 허용'으로 풀어도 됨**: guard.sh가 스테이징의 .env·키 파일을 권한과 무관하게 차단하므로(v2.47) |
 | 원격·배포: push(원격)·deploy·publish·--prod | **ask 또는 deny** | 외부 영향. 프로덕션이면 deny |
 | 비가역·삭제: rm·delete·terminate·remove·prune·--force·reset --hard·드롭 | **deny (차단)** | 되돌릴 수 없음. 자동은 물론 확인도 위험 |
 
@@ -26,6 +26,11 @@ Claude Code는 기본적으로 bash 명령마다 사용자 승인을 받는다. 
 - 배포 CLI(예: 호스팅 도구)라면: 조회는 allow, `deploy`·`--prod`는 deny.
 - 클라우드 CLI라면: `describe`·`list`·`get`은 allow, `delete`·`terminate`는 deny.
 > 위는 **예시**다. 실제 추가는 그 프로젝트가 쓰는 도구에 동사 기준을 적용해서 한다.
+
+### 규칙 쓰는 법: 접두 매칭 금지 (v2.49)
+- allow 규칙은 `Bash(ls*)`처럼 붙여 쓰지 않는다. `ls*`는 `lsof`까지, `sh*gate.sh`는 `shred ...gate.sh`(파일 파쇄)까지 매칭된다. 정확 명령 `Bash(ls)` + 공백 인자 `Bash(ls *)` 두 줄로 쓴다.
+- 읽기 명령이라도 **쓰기·삭제 옵션**이 숨어 있으면 그 옵션을 ask로 끌어올린다(ask가 allow보다 먼저 판정). `find`의 `-delete`·`-exec`, `git diff/log/show`의 `--output`(파일 쓰기)이 그렇다.
+- 발견 경위: Claude Code `/doctor`가 이 템플릿의 settings.json에서 찾았다. guard.sh 차단 목록에도 find 삭제형이 없어 실제로 통과 가능한 구멍이었다.
 
 ## 보수적 설계 원칙 (중요)
 - **의심스러우면 allow가 아니라 ask로.** allow는 "아무것도 안 바꾸는" 명령만.
